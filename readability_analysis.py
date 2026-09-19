@@ -17,18 +17,10 @@ from docx import Document
 import textstat
 import pandas as pd
 
-
-# ===========================
-# 修改这里为你的Word文件路径
-# ===========================
-file_path = r"/Users/dulanmei/Desktop/www.DESCRIPTION.docx"
+file_path = r"DESCRIPTION.docx"
 # 例如：
 # file_path = r"D:\Books\MyBook.docx"
 
-
-# ===========================
-# 读取Word文档
-# ===========================
 doc = Document(file_path)
 
 text = ""
@@ -45,11 +37,6 @@ print(f"Characters: {len(text)}")
 print(f"Words: {textstat.lexicon_count(text)}")
 print(f"Sentences: {textstat.sentence_count(text)}")
 print()
-
-
-# ===========================
-# 计算可读性指标
-# ===========================
 
 results = {
     "Flesch Reading Ease":
@@ -74,11 +61,6 @@ results = {
         textstat.dale_chall_readability_score(text)
 }
 
-
-# ===========================
-# 控制台输出
-# ===========================
-
 print("=" * 60)
 print("READABILITY RESULTS")
 print("=" * 60)
@@ -87,11 +69,6 @@ for metric, value in results.items():
     print(f"{metric:<35}: {value:.2f}")
 
 print("=" * 60)
-
-
-# ===========================
-# 保存Excel
-# ===========================
 
 df = pd.DataFrame([results])
 

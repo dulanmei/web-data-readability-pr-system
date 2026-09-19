@@ -1,0 +1,286 @@
+import requests
+from bs4 import BeautifulSoup
+from urllib.parse import urljoin, urlparse
+import pandas as pd
+import textstat
+import time
+import random
+
+
+# ============================================================
+# 1. Settings
+# ============================================================
+
+BASE_URL = "https://www.hel.fi/en/health-and-social-services/health-care"
+
+OUTPUT_FILE = "helsinki_healthcare_readability.xlsx"
+
+# Keep track of visited URLs to avoid duplicate crawling
+visited_urls = set()
+
+
+# ============================================================
+# 2. Fetch webpage
+# ============================================================
+
+def fetch_page(url):
+    """
+    Download a webpage and return the HTML content.
+    """
+    
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/120.0 Safari/537.36"
+        )
+    }
+
+    try:
+        response = requests.get(
+            url,
+            headers=headers,
+            timeout=10
+        )
+
+        response.raise_for_status()
+
+        return response.text
+
+    except requests.RequestException as e:
+        print(f"Could not access {url}: {e}")
+        return None
+
+
+# ============================================================
+# 3. Extract webpage text
+# ============================================================
+
+def extract_full_text(soup):
+    """
+    Extract visible text from the webpage.
+
+    This is the text used for readability analysis.
+    """
+
+    # Remove elements that are not part of the main readable text
+    for element in soup([
+        "script",
+        "style",
+        "noscript",
+        "header",
+        "footer",
+        "nav",
+        "aside"
+    ]):
+        element.decompose()
+
+    text = soup.get_text(
+        separator=" ",
+        strip=True
+    )
+
+    return text
+
+
+# ============================================================
+# 4. Get webpage title
+# ============================================================
+
+def get_title(soup):
+    """
+    Extract webpage title.
+    """
+
+    if soup.title:
+        return soup.title.get_text(strip=True)
+
+    return ""
+
+
+# ============================================================
+# 5. Readability analysis
+# ============================================================
+
+def get_readability_scores(text):
+    """
+    Calculate readability scores for one webpage.
+    """
+
+    if not text or not text.strip():
+        return {
+            "Words": 0,
+            "Sentences": 0,
+            "Flesch Reading Ease": None,
+            "Flesch-Kincaid Grade": None,
+            "Gunning Fog": None
+        }
+
+    try:
+        words = textstat.lexicon_count(
+            text,
+            removepunct=True
+        )
+
+        sentences = textstat.sentence_count(text)
+
+        flesch = textstat.flesch_reading_ease(text)
+        fk_grade = textstat.flesch_kincaid_grade(text)
+        fog = textstat.gunning_fog(text)
+
+        return {
+            "Words": words,
+            "Sentences": sentences,
+            "Flesch Reading Ease": flesch,
+            "Flesch-Kincaid Grade": fk_grade,
+            "Gunning Fog": fog
+        }
+
+    except Exception as e:
+
+        print(f"Readability calculation error: {e}")
+
+        return {
+            "Words": None,
+            "Sentences": None,
+            "Flesch Reading Ease": None,
+            "Flesch-Kincaid Grade": None,
+            "Gunning Fog": None
+        }
+
+
+# ============================================================
+# 6. Crawl webpages recursively
+# ============================================================
+
+def scrape_recursive(url):
+    """
+    Crawl the starting webpage and internal hel.fi webpages.
+
+    Each webpage produces one row in the final dataset.
+    """
+
+    if url in visited_urls:
+        return []
+
+    visited_urls.add(url)
+
+    print(f"Crawling: {url}")
+
+    html = fetch_page(url)
+
+    if html is None:
+        return []
+
+    soup = BeautifulSoup(html, "html.parser")
+
+    # --------------------------------------------------------
+    # Extract webpage information
+    # --------------------------------------------------------
+
+    title = get_title(soup)
+
+    # This is the actual webpage text used for readability
+    description = extract_full_text(soup)
+
+    # --------------------------------------------------------
+    # Readability analysis
+    # --------------------------------------------------------
+
+    readability = get_readability_scores(description)
+
+    # --------------------------------------------------------
+    # Save current webpage
+    # --------------------------------------------------------
+
+    data_row = {
+        "URL": url,
+        "TITLE": title,
+        "DESCRIPTION": description,
+        "WORDS": readability["Words"],
+        "SENTENCES": readability["Sentences"],
+        "Flesch Reading Ease": readability["Flesch Reading Ease"],
+        "Flesch-Kincaid Grade": readability["Flesch-Kincaid Grade"],
+        "Gunning Fog": readability["Gunning Fog"]
+    }
+
+    results = [data_row]
+
+    # --------------------------------------------------------
+    # Find internal links
+    # --------------------------------------------------------
+
+    base_domain = urlparse(BASE_URL).netloc
+
+    links = soup.find_all("a", href=True)
+
+    internal_urls = set()
+
+    for link in links:
+
+        href = link.get("href")
+
+        if not href:
+            continue
+
+        next_url = urljoin(url, href)
+
+        parsed_url = urlparse(next_url)
+
+        # Only crawl pages within hel.fi
+        if parsed_url.netloc == base_domain:
+
+            # Remove URL fragments
+            clean_url = next_url.split("#")[0]
+
+            internal_urls.add(clean_url)
+
+    # --------------------------------------------------------
+    # Crawl linked webpages
+    # --------------------------------------------------------
+
+    for next_url in internal_urls:
+
+        if next_url not in visited_urls:
+
+            time.sleep(
+                random.uniform(0.5, 1.5)
+            )
+
+            results.extend(
+                scrape_recursive(next_url)
+            )
+
+    return results
+
+
+# ============================================================
+# 7. Run the crawler
+# ============================================================
+
+print("Starting webpage collection...")
+
+all_scraped_data = scrape_recursive(BASE_URL)
+
+
+# ============================================================
+# 8. Create DataFrame
+# ============================================================
+
+df = pd.DataFrame(all_scraped_data)
+
+
+# ============================================================
+# 9. Save results
+# ============================================================
+
+df.to_excel(
+    OUTPUT_FILE,
+    index=False
+)
+
+print("\n----------------------------------------")
+print("Crawling completed.")
+print(f"Number of webpages: {len(df)}")
+print(f"Output file: {OUTPUT_FILE}")
+print("----------------------------------------")

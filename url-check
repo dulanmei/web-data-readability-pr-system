@@ -1,0 +1,86 @@
+# -*- coding: utf-8 -*-
+
+from docx import Document
+import pandas as pd
+
+file_path = r"description.docx"
+
+doc = Document(file_path)
+
+table = doc.tables[0]
+
+data = []
+
+# 跳过表头
+for row in table.rows[1:]:
+
+    no = row.cells[0].text.strip()
+    url = row.cells[1].text.strip()
+    description = row.cells[2].text.strip()
+
+    data.append({
+        "No": no,
+        "URL": url,
+        "DESCRIPTION": description
+    })
+
+
+df = pd.DataFrame(data)
+
+
+# ============================
+# 1. 基本数量检查
+# ============================
+
+print("Total rows:", len(df))
+
+print("Unique URLs:",
+      df["URL"].nunique())
+
+print("Unique DESCRIPTIONS:",
+      df["DESCRIPTION"].nunique())
+
+
+# ============================
+# 2. 检查重复URL
+# ============================
+
+duplicate_urls = df[df["URL"].duplicated(keep=False)]
+
+print("\nDuplicate URLs:")
+print(duplicate_urls[["No", "URL"]].sort_values("URL"))
+
+
+# ============================
+# 3. 检查相同DESCRIPTION对应多个URL
+# ============================
+
+same_description_multiple_urls = (
+    df.groupby("DESCRIPTION")["URL"]
+    .nunique()
+    .reset_index()
+)
+
+same_description_multiple_urls = (
+    same_description_multiple_urls[
+        same_description_multiple_urls["URL"] > 1
+    ]
+)
+
+
+print("\nSame DESCRIPTION but different URLs:")
+print(
+    same_description_multiple_urls.head(20)
+)
+
+
+# ============================
+# 4. 输出完整检查结果
+# ============================
+
+df.to_excel(
+    "URL_DESCRIPTION_CHECK.xlsx",
+    index=False
+)
+
+print("\nSaved: URL_DESCRIPTION_CHECK.xlsx")

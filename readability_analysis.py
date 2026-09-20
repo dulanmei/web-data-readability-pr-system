@@ -18,8 +18,6 @@ import textstat
 import pandas as pd
 
 file_path = r"DESCRIPTION.docx"
-# 例如：
-# file_path = r"D:\Books\MyBook.docx"
 
 doc = Document(file_path)
 

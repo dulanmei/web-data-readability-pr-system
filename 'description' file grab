@@ -6,22 +6,12 @@ import textstat
 import time
 import random
 
-
-# ============================================================
-# 1. Settings
-# ============================================================
-
 BASE_URL = "https://www.hel.fi/en/health-and-social-services/health-care"
 
 OUTPUT_FILE = "helsinki_healthcare_readability.xlsx"
 
 # Keep track of visited URLs to avoid duplicate crawling
 visited_urls = set()
-
-
-# ============================================================
-# 2. Fetch webpage
-# ============================================================
 
 def fetch_page(url):
     """
@@ -51,11 +41,6 @@ def fetch_page(url):
         print(f"Could not access {url}: {e}")
         return None
 
-
-# ============================================================
-# 3. Extract webpage text
-# ============================================================
-
 def extract_full_text(soup):
     """
     Extract visible text from the webpage.
@@ -82,11 +67,6 @@ def extract_full_text(soup):
 
     return text
 
-
-# ============================================================
-# 4. Get webpage title
-# ============================================================
-
 def get_title(soup):
     """
     Extract webpage title.
@@ -96,11 +76,6 @@ def get_title(soup):
         return soup.title.get_text(strip=True)
 
     return ""
-
-
-# ============================================================
-# 5. Readability analysis
-# ============================================================
 
 def get_readability_scores(text):
     """
@@ -148,11 +123,6 @@ def get_readability_scores(text):
             "Gunning Fog": None
         }
 
-
-# ============================================================
-# 6. Crawl webpages recursively
-# ============================================================
-
 def scrape_recursive(url):
     """
     Crawl the starting webpage and internal hel.fi webpages.
@@ -174,24 +144,12 @@ def scrape_recursive(url):
 
     soup = BeautifulSoup(html, "html.parser")
 
-    # --------------------------------------------------------
-    # Extract webpage information
-    # --------------------------------------------------------
-
     title = get_title(soup)
 
     # This is the actual webpage text used for readability
     description = extract_full_text(soup)
 
-    # --------------------------------------------------------
-    # Readability analysis
-    # --------------------------------------------------------
-
     readability = get_readability_scores(description)
-
-    # --------------------------------------------------------
-    # Save current webpage
-    # --------------------------------------------------------
 
     data_row = {
         "URL": url,
@@ -205,10 +163,6 @@ def scrape_recursive(url):
     }
 
     results = [data_row]
-
-    # --------------------------------------------------------
-    # Find internal links
-    # --------------------------------------------------------
 
     base_domain = urlparse(BASE_URL).netloc
 
@@ -235,10 +189,6 @@ def scrape_recursive(url):
 
             internal_urls.add(clean_url)
 
-    # --------------------------------------------------------
-    # Crawl linked webpages
-    # --------------------------------------------------------
-
     for next_url in internal_urls:
 
         if next_url not in visited_urls:
@@ -253,26 +203,11 @@ def scrape_recursive(url):
 
     return results
 
-
-# ============================================================
-# 7. Run the crawler
-# ============================================================
-
 print("Starting webpage collection...")
 
 all_scraped_data = scrape_recursive(BASE_URL)
 
-
-# ============================================================
-# 8. Create DataFrame
-# ============================================================
-
 df = pd.DataFrame(all_scraped_data)
-
-
-# ============================================================
-# 9. Save results
-# ============================================================
 
 df.to_excel(
     OUTPUT_FILE,
